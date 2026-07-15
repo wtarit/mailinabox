@@ -4,6 +4,45 @@
 
 source setup/functions.sh # load our functions
 
+# An explicit environment setting or command-line option takes precedence over
+# the interactive optional-services checklist.
+if [ -n "${ENABLE_POSTGREY+x}" ]; then
+	POSTGREY_OPTION_SET=1
+else
+	POSTGREY_OPTION_SET=0
+fi
+
+# Postgrey can be selected on the command line. Parse the option before the
+# preflight checks so `setup/start.sh --help` is safe to run on a workstation.
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+		--enable-postgrey)
+			ENABLE_POSTGREY=1
+			POSTGREY_OPTION_SET=1
+			;;
+		--disable-postgrey)
+			ENABLE_POSTGREY=0
+			POSTGREY_OPTION_SET=1
+			;;
+		--help|-h)
+			cat <<'EOF'
+Usage: sudo setup/start.sh [OPTION]...
+
+Optional services:
+  --disable-postgrey    Disable greylisting and remove Postgrey.
+  --enable-postgrey     Enable greylisting (the default).
+EOF
+			exit 0
+			;;
+		*)
+			echo "Unknown option: $1" >&2
+			echo "Run 'sudo setup/start.sh --help' for usage." >&2
+			exit 2
+			;;
+	esac
+	shift
+done
+
 # Check system setup: Are we running as root on Ubuntu 18.04 on a
 # machine with enough memory? Is /tmp mounted with exec.
 # If not, this shows an error and exits.
@@ -40,6 +79,14 @@ if [ -f /etc/mailinabox.conf ]; then
 	rm -f /tmp/mailinabox.prev.conf
 else
 	FIRST_TIME_SETUP=1
+fi
+
+# Preserve the existing choice on upgrades. A command-line or environment
+# setting takes precedence so an operator can change it during a setup run.
+ENABLE_POSTGREY="${ENABLE_POSTGREY:-${DEFAULT_ENABLE_POSTGREY:-1}}"
+if [ "$ENABLE_POSTGREY" != "0" ] && [ "$ENABLE_POSTGREY" != "1" ]; then
+	echo "ENABLE_POSTGREY must be either 0 or 1." >&2
+	exit 2
 fi
 
 # Put a start script in a global location. We tell the user to run 'mailinabox'
@@ -101,6 +148,7 @@ PUBLIC_IPV6=$PUBLIC_IPV6
 PRIVATE_IP=$PRIVATE_IP
 PRIVATE_IPV6=$PRIVATE_IPV6
 MTA_STS_MODE=${DEFAULT_MTA_STS_MODE:-enforce}
+ENABLE_POSTGREY=$ENABLE_POSTGREY
 EOF
 
 # Start service configuration.

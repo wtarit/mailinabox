@@ -184,6 +184,21 @@ function input_menu {
 	set -e
 }
 
+function checklist_box {
+	# checklist_box "title" "prompt" VARIABLE tag item state [tag item state ...]
+	# Selected tags are stored one per line in VARIABLE. The dialog exit code is
+	# stored in VARIABLE_EXITCODE. Add another tag/item/state triplet to extend it.
+	local title=$1
+	local prompt=$2
+	declare -n result=$3
+	declare -n result_code=$3_EXITCODE
+	shift 3
+	set +e
+	result=$(dialog --stdout --separate-output --title "$title" --checklist "$prompt" 0 0 0 "$@")
+	result_code=$?
+	set -e
+}
+
 function wget_verify {
 	# Downloads a file from the web and checks that it matches
 	# a provided hash. If the comparison fails, exit immediately.

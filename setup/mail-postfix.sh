@@ -42,7 +42,11 @@ source /etc/mailinabox.conf # load global vars
 # * `ca-certificates`: A trust store used to squelch postfix warnings about
 #   untrusted opportunistically-encrypted connections.
 echo "Installing Postfix (SMTP server)..."
-apt_install postfix postfix-sqlite postfix-pcre postgrey ca-certificates
+postfix_packages=(postfix postfix-sqlite postfix-pcre ca-certificates)
+if [ "$ENABLE_POSTGREY" = "1" ]; then
+	postfix_packages+=(postgrey)
+fi
+apt_install "${postfix_packages[@]}"
 
 # ### Basic Settings
 
@@ -228,7 +232,7 @@ tools/editconf.py /etc/postfix/main.cf  -e lmtp_destination_recipient_limit=
 # * `permit_mynetworks`: Mail that originates locally can skip further checks.
 # * `reject_rbl_client`: Reject connections from IP addresses blacklisted in zen.spamhaus.org
 # * `reject_unlisted_recipient`: Although Postfix will reject mail to unknown recipients, it's nicer to reject such mail ahead of greylisting rather than after.
-# * `check_policy_service`: Apply greylisting using postgrey.
+# * `check_policy_service`: Apply greylisting using Postgrey when enabled.
 #
 # Note the spamhaus rbl return codes are taken into account as advised here: https://docs.spamhaus.com/datasets/docs/source/40-real-world-usage/PublicMirrors/MTAs/020-Postfix.html
 # Notes: #NODOC
@@ -236,10 +240,15 @@ tools/editconf.py /etc/postfix/main.cf  -e lmtp_destination_recipient_limit=
 # so these IPs get mail delivered quickly. But when an IP is not listed in the permit_dnswl_client list (i.e. it is not #NODOC
 # whitelisted) then postfix does a DEFER_IF_REJECT, which results in all "unknown user" sorts of messages turning into #NODOC
 # "450 4.7.1 Client host rejected: Service unavailable". This is a retry code, so the mail doesn't properly bounce. #NODOC
+postgrey_policy=""
+if [ "$ENABLE_POSTGREY" = "1" ]; then
+	postgrey_policy=",check_policy_service inet:127.0.0.1:10023"
+fi
 tools/editconf.py /etc/postfix/main.cf \
 	smtpd_sender_restrictions="reject_non_fqdn_sender,reject_unknown_sender_domain,reject_authenticated_sender_login_mismatch,reject_rhsbl_sender dbl.spamhaus.org=127.0.1.[2..99]" \
-	smtpd_recipient_restrictions="permit_sasl_authenticated,permit_mynetworks,reject_rbl_client zen.spamhaus.org=127.0.0.[2..11],reject_unlisted_recipient,check_policy_service inet:127.0.0.1:10023,check_policy_service inet:127.0.0.1:12340"
+	smtpd_recipient_restrictions="permit_sasl_authenticated,permit_mynetworks,reject_rbl_client zen.spamhaus.org=127.0.0.[2..11],reject_unlisted_recipient${postgrey_policy},check_policy_service inet:127.0.0.1:12340"
 
+if [ "$ENABLE_POSTGREY" = "1" ]; then
 # Postfix connects to Postgrey on the 127.0.0.1 interface specifically. Ensure that
 # Postgrey listens on the same interface (and not IPv6, for instance).
 # A lot of legit mail servers try to resend before 300 seconds.
@@ -297,6 +306,12 @@ fi
 EOF
 chmod +x /etc/cron.daily/mailinabox-postgrey-whitelist
 /etc/cron.daily/mailinabox-postgrey-whitelist
+else
+	echo "Disabling Postgrey..."
+	rm -f /etc/cron.daily/mailinabox-postgrey-whitelist
+	systemctl disable --now postgrey >/dev/null 2>&1 || true
+	apt_get_quiet purge postgrey
+fi
 
 # Increase the message size limit from 10MB to 128MB.
 # The same limit is specified in nginx.conf for mail submitted via webmail and Z-Push.
@@ -312,4 +327,6 @@ ufw_allow submission
 # Restart services
 
 restart_service postfix
-restart_service postgrey
+if [ "$ENABLE_POSTGREY" = "1" ]; then
+	restart_service postgrey
+fi
