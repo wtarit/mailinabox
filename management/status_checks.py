@@ -21,13 +21,16 @@ from mailconfig import get_mail_domains, get_mail_aliases
 from utils import shell, sort_domains, load_env_vars_from_file, load_settings, get_ssh_port, get_ssh_config_value
 from backup import get_backup_config, backup_status
 
-def get_services():
-	return [
+def get_services(env):
+	services = [
 		{ "name": "Local DNS (bind9)", "port": 53, "public": False, },
 		#{ "name": "NSD Control", "port": 8952, "public": False, },
 		{ "name": "Local DNS Control (bind9/rndc)", "port": 953, "public": False, },
 		{ "name": "Dovecot LMTP LDA", "port": 10026, "public": False, },
-		{ "name": "Postgrey", "port": 10023, "public": False, },
+	]
+	if env.get("ENABLE_POSTGREY", "1") == "1":
+		services.append({ "name": "Postgrey", "port": 10023, "public": False, })
+	services += [
 		{ "name": "Spamassassin", "port": 10025, "public": False, },
 		{ "name": "OpenDKIM", "port": 8891, "public": False, },
 		{ "name": "OpenDMARC", "port": 8893, "public": False, },
@@ -43,6 +46,7 @@ def get_services():
 		{ "name": "HTTP Web (nginx)", "port": 80, "public": True, },
 		{ "name": "HTTPS Web (nginx)", "port": 443, "public": True, },
 	]
+	return services
 
 def run_checks(rounded_values, env, output, pool, domains_to_check=None):
 	# run systems checks
@@ -71,7 +75,7 @@ def run_services_checks(env, output, pool):
 	# Check that system services are running.
 	all_running = True
 	fatal = False
-	ret = pool.starmap(check_service, ((i, service, env) for i, service in enumerate(get_services())), chunksize=1)
+	ret = pool.starmap(check_service, ((i, service, env) for i, service in enumerate(get_services(env))), chunksize=1)
 	for _i, running, fatal2, output2 in sorted(ret):
 		if output2 is None: continue # skip check (e.g. no port was set, e.g. no sshd)
 		all_running = all_running and running
@@ -175,7 +179,7 @@ def check_ufw(env, output):
 	ufw = ufw.splitlines()
 	if ufw[0] == "Status: active":
 		not_allowed_ports = 0
-		for service in get_services():
+		for service in get_services(env):
 			if service["public"] and not is_port_allowed(ufw, service["port"]):
 				not_allowed_ports += 1
 				output.print_error("Port {} ({}) should be allowed in the firewall, please re-run the setup.".format(service["port"], service["name"]))

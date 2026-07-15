@@ -68,6 +68,13 @@ Begin the installation.
 
 The installation will install, uninstall, and configure packages to turn the machine into a working, good mail server.
 
+Optional services
+-----------------
+
+Some services can be enabled or disabled during setup. The configurable options currently include:
+
+* Postgrey (enabled by default; disable with `--disable-postgrey`)
+
 For help, DO NOT contact Josh directly --- I don't do tech support by email or tweet (no exceptions).
 
 Post your question on the [discussion forum](https://discourse.mailinabox.email/) instead, where maintainers and Mail-in-a-Box users may be able to help you.
