@@ -42,7 +42,7 @@ source /etc/mailinabox.conf # load global vars
 # * `ca-certificates`: A trust store used to squelch postfix warnings about
 #   untrusted opportunistically-encrypted connections.
 echo "Installing Postfix (SMTP server)..."
-postfix_packages=(postfix postfix-sqlite postfix-pcre ca-certificates)
+postfix_packages=(postfix postfix-sqlite postfix-pcre ca-certificates libsasl2-modules)
 if [ "$ENABLE_POSTGREY" = "1" ]; then
 	postfix_packages+=(postgrey)
 fi
@@ -200,12 +200,64 @@ tools/editconf.py /etc/postfix/main.cf \
 	smtp_tls_protocols=\!SSLv2,\!SSLv3 \
 	smtp_tls_ciphers=medium \
 	smtp_tls_exclude_ciphers=aNULL,RC4 \
-	smtp_tls_security_level=dane \
-	smtp_dns_support_level=dnssec \
 	smtp_tls_mandatory_protocols="!SSLv2,!SSLv3,!TLSv1,!TLSv1.1" \
 	smtp_tls_mandatory_ciphers=high \
 	smtp_tls_CAfile=/etc/ssl/certs/ca-certificates.crt \
 	smtp_tls_loglevel=2
+
+if [ "$ENABLE_SMTP_RELAY" = "1" ]; then
+	# Route every non-local message through one authenticated, TLS-verified
+	# relay. The bracketed hostname disables MX lookups and must exactly match
+	# the key in smtp_sasl_password_maps.
+	SMTP_RELAY_DESTINATION="[$SMTP_RELAY_HOST]:$SMTP_RELAY_PORT"
+
+	if [ -n "${SMTP_RELAY_PASSWORD:-}" ]; then
+		(umask 077; printf '%s %s:%s\n' \
+			"$SMTP_RELAY_DESTINATION" \
+			"$SMTP_RELAY_USERNAME" \
+			"$SMTP_RELAY_PASSWORD" > /etc/postfix/sasl_passwd)
+	fi
+	if ! python3 management/smtp_relay.py has-credentials \
+		--host "$SMTP_RELAY_HOST" \
+		--port "$SMTP_RELAY_PORT" \
+		--security "$SMTP_RELAY_SECURITY" \
+		--username "$SMTP_RELAY_USERNAME" >/dev/null 2>&1; then
+		echo "SMTP relay credentials are missing from /etc/postfix/sasl_passwd." >&2
+		exit 2
+	fi
+
+	postmap hash:/etc/postfix/sasl_passwd
+	chmod 600 /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
+
+	SMTP_RELAY_WRAPPERMODE=
+	if [ "$SMTP_RELAY_SECURITY" = "implicit-tls" ]; then
+		SMTP_RELAY_WRAPPERMODE=yes
+	fi
+	tools/editconf.py /etc/postfix/main.cf -e \
+		relayhost="$SMTP_RELAY_DESTINATION" \
+		smtp_tls_security_level=secure \
+		smtp_dns_support_level=dns \
+		smtp_tls_wrappermode="$SMTP_RELAY_WRAPPERMODE" \
+		smtp_sasl_auth_enable=yes \
+		smtp_sasl_password_maps=hash:/etc/postfix/sasl_passwd \
+		smtp_sasl_security_options=noanonymous \
+		smtp_sasl_tls_security_options=noanonymous
+else
+	# Restore direct delivery with opportunistic DANE and remove any credentials
+	# left by a previously-enabled relay.
+	tools/editconf.py /etc/postfix/main.cf -e \
+		relayhost= \
+		smtp_tls_security_level=dane \
+		smtp_dns_support_level=dnssec \
+		smtp_tls_wrappermode= \
+		smtp_sasl_auth_enable= \
+		smtp_sasl_password_maps= \
+		smtp_sasl_security_options= \
+		smtp_sasl_tls_security_options=
+	rm -f /etc/postfix/sasl_passwd /etc/postfix/sasl_passwd.db
+fi
+
+unset SMTP_RELAY_PASSWORD
 
 # ### Incoming Mail
 
@@ -326,6 +378,9 @@ ufw_allow submission
 
 # Restart services
 
+if [ "$ENABLE_SMTP_RELAY" = "1" ]; then
+	hide_output postfix check
+fi
 restart_service postfix
 if [ "$ENABLE_POSTGREY" = "1" ]; then
 	restart_service postgrey

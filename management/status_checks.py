@@ -20,6 +20,7 @@ from mailconfig import get_mail_domains, get_mail_aliases
 
 from utils import shell, sort_domains, load_env_vars_from_file, load_settings, get_ssh_port, get_ssh_config_value
 from backup import get_backup_config, backup_status
+from smtp_relay import smtp_relay_enabled, get_smtp_relay_config, check_smtp_relay, RelayConfigurationError
 
 def get_services(env):
 	services = [
@@ -38,8 +39,8 @@ def get_services(env):
 		{ "name": "SSH Login (ssh)", "port": get_ssh_port(), "public": True, },
 		{ "name": "Public DNS (nsd4)", "port": 53, "public": True, },
 		{ "name": "Incoming Mail (SMTP/postfix)", "port": 25, "public": True, },
-		{ "name": "Outgoing Mail (SMTP 465/postfix)", "port": 465, "public": True, },
-		{ "name": "Outgoing Mail (SMTP 587/postfix)", "port": 587, "public": True, },
+		{ "name": "Mail Submission (SMTP 465/postfix)", "port": 465, "public": True, },
+		{ "name": "Mail Submission (SMTP 587/postfix)", "port": 587, "public": True, },
 		#{ "name": "Postfix/master", "port": 10587, "public": True, },
 		{ "name": "IMAPS (dovecot)", "port": 993, "public": True, },
 		{ "name": "Mail Filters (Sieve/dovecot)", "port": 4190, "public": True, },
@@ -303,6 +304,14 @@ def run_network_checks(env, output):
 	output.add_heading("Network")
 
 	check_ufw(env, output)
+	if smtp_relay_enabled(env):
+		try:
+			config = get_smtp_relay_config(env)
+			output.print_ok(check_smtp_relay(config))
+		except RelayConfigurationError as exc:
+			output.print_error(str(exc))
+		output.print_line("Direct-delivery checks for outbound SMTP port 25 and this box's public IP reputation were skipped because remote recipients see the relay provider's sending infrastructure.")
+		return
 
 	# Stop if we cannot make an outbound connection on port 25. Many residential
 	# networks block outbound port 25 to prevent their network from sending spam.
@@ -498,18 +507,20 @@ def check_primary_hostname_dns(domain, env, output, dns_domains, dns_zonefiles):
 			issues listed above.""".format(my_ips, ip + ((" / " + ipv6) if ipv6 is not None else "")))
 
 
-	# Check reverse DNS matches the PRIMARY_HOSTNAME. Note that it might not be
-	# a DNS zone if it is a subdomain of another domain we have a zone for.
-	existing_rdns_v4 = query_dns(dns.reversename.from_address(env['PUBLIC_IP']), "PTR")
-	existing_rdns_v6 = query_dns(dns.reversename.from_address(env['PUBLIC_IPV6']), "PTR") if env.get("PUBLIC_IPV6") else None
-	if existing_rdns_v4 == domain and existing_rdns_v6 in {None, domain}:
-		output.print_ok("Reverse DNS is set correctly at ISP. [{} ↦ {}]".format(my_ips, env['PRIMARY_HOSTNAME']))
-	elif existing_rdns_v4 == existing_rdns_v6 or existing_rdns_v6 is None:
-		output.print_error(f"""This box's reverse DNS is currently {existing_rdns_v4}, but it should be {domain}. Your ISP or cloud provider will have instructions
-			on setting up reverse DNS for this box.""" )
-	else:
-		output.print_error(f"""This box's reverse DNS is currently {existing_rdns_v4} (IPv4) and {existing_rdns_v6} (IPv6), but it should be {domain}. Your ISP or cloud provider will have instructions
-			on setting up reverse DNS for this box.""" )
+	if not smtp_relay_enabled(env):
+		# Check reverse DNS matches the PRIMARY_HOSTNAME for direct outbound
+		# delivery. A relay provider's sending IP and reverse DNS are used instead
+		# when the relay is enabled.
+		existing_rdns_v4 = query_dns(dns.reversename.from_address(env['PUBLIC_IP']), "PTR")
+		existing_rdns_v6 = query_dns(dns.reversename.from_address(env['PUBLIC_IPV6']), "PTR") if env.get("PUBLIC_IPV6") else None
+		if existing_rdns_v4 == domain and existing_rdns_v6 in {None, domain}:
+			output.print_ok("Reverse DNS is set correctly at ISP. [{} ↦ {}]".format(my_ips, env['PRIMARY_HOSTNAME']))
+		elif existing_rdns_v4 == existing_rdns_v6 or existing_rdns_v6 is None:
+			output.print_error(f"""This box's reverse DNS is currently {existing_rdns_v4}, but it should be {domain}. Your ISP or cloud provider will have instructions
+				on setting up reverse DNS for this box.""" )
+		else:
+			output.print_error(f"""This box's reverse DNS is currently {existing_rdns_v4} (IPv4) and {existing_rdns_v6} (IPv6), but it should be {domain}. Your ISP or cloud provider will have instructions
+				on setting up reverse DNS for this box.""" )
 
 	# Check the TLSA record.
 	tlsa_qname = "_25._tcp." + domain

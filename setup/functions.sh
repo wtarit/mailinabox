@@ -171,15 +171,30 @@ function input_box {
 	set -e
 }
 
-function input_menu {
-	# input_menu "title" "prompt" "tag item tag item" VARIABLE
-	# The user's input will be stored in the variable VARIABLE.
-	# The exit code from dialog will be stored in VARIABLE_EXITCODE.
+function menu_box {
+	# menu_box "title" "prompt" DEFAULT VARIABLE tag item [tag item ...]
+	# The selected tag is stored in VARIABLE. The dialog exit code is stored in
+	# VARIABLE_EXITCODE.
+	local title=$1
+	local prompt=$2
+	local default_item=$3
 	declare -n result=$4
 	declare -n result_code=$4_EXITCODE
-	local IFS=^$'\n'
+	shift 4
 	set +e
-	result=$(dialog --stdout --title "$1" --menu "$2" 0 0 0 "$3")
+	result=$(dialog --stdout --title "$title" --default-item "$default_item" --menu "$prompt" 0 0 0 "$@")
+	result_code=$?
+	set -e
+}
+
+function password_box {
+	# password_box "title" "prompt" VARIABLE
+	# The user's input is stored in VARIABLE without being displayed. The dialog
+	# exit code is stored in VARIABLE_EXITCODE.
+	declare -n result=$3
+	declare -n result_code=$3_EXITCODE
+	set +e
+	result=$(dialog --stdout --insecure --title "$1" --passwordbox "$2" 0 0)
 	result_code=$?
 	set -e
 }

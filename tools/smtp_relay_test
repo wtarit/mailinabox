@@ -1,0 +1,17 @@
+#!/bin/bash
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+source /etc/mailinabox.conf
+
+if [ "${ENABLE_SMTP_RELAY:-0}" != "1" ]; then
+	echo "The authenticated SMTP relay is not enabled." >&2
+	exit 1
+fi
+
+exec python3 management/smtp_relay.py check \
+	--host "$SMTP_RELAY_HOST" \
+	--port "$SMTP_RELAY_PORT" \
+	--security "$SMTP_RELAY_SECURITY" \
+	--username "$SMTP_RELAY_USERNAME"
