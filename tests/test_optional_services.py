@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -10,6 +11,25 @@ from unittest import mock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "management"))
 
 import smtp_relay
+
+
+class PostfixSMTPRelayConfigurationTests(unittest.TestCase):
+	def test_relay_and_direct_delivery_use_valid_dns_support_levels(self):
+		postfix_setup_path = os.path.join(os.path.dirname(__file__), "..", "setup", "mail-postfix.sh")
+		with open(postfix_setup_path, encoding="utf-8") as postfix_setup_file:
+			postfix_setup = postfix_setup_file.read()
+
+		relay_branch = re.search(
+			r'if \[ "\$ENABLE_SMTP_RELAY" = "1" \]; then(?P<relay>.*?)\nelse\n(?P<direct>.*?)\nfi',
+			postfix_setup,
+			re.DOTALL,
+		)
+		self.assertIsNotNone(relay_branch)
+		self.assertIn("smtp_tls_security_level=secure", relay_branch.group("relay"))
+		self.assertIn("smtp_dns_support_level=enabled", relay_branch.group("relay"))
+		self.assertNotIn("smtp_dns_support_level=dns ", relay_branch.group("relay"))
+		self.assertIn("smtp_tls_security_level=dane", relay_branch.group("direct"))
+		self.assertIn("smtp_dns_support_level=dnssec", relay_branch.group("direct"))
 
 
 class SMTPRelayConfigurationTests(unittest.TestCase):

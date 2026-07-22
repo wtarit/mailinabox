@@ -236,7 +236,7 @@ if [ "$ENABLE_SMTP_RELAY" = "1" ]; then
 	tools/editconf.py /etc/postfix/main.cf -e \
 		relayhost="$SMTP_RELAY_DESTINATION" \
 		smtp_tls_security_level=secure \
-		smtp_dns_support_level=dns \
+		smtp_dns_support_level=enabled \
 		smtp_tls_wrappermode="$SMTP_RELAY_WRAPPERMODE" \
 		smtp_sasl_auth_enable=yes \
 		smtp_sasl_password_maps=hash:/etc/postfix/sasl_passwd \
