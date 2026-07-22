@@ -6,17 +6,11 @@ if [ -z "${NONINTERACTIVE:-}" ]; then
 	# case, the nifty '[ -t 0 ]' test won't work. But with Vagrant we must suppress so we
 	# use a shell flag instead. Really suppress any output from installing dialog.
 	#
-	# Also install dependencies needed to validate the email address.
-	if [ ! -f /usr/bin/dialog ] || [ ! -f /usr/bin/python3 ] || [ ! -f /usr/bin/pip3 ]; then
+	if [ ! -f /usr/bin/dialog ] || [ ! -f /usr/bin/python3 ]; then
 		echo "Installing packages needed for setup..."
 		apt-get -q -q update
-		apt_get_quiet install dialog python3 python3-pip  || exit 1
+		apt_get_quiet install dialog python3 || exit 1
 	fi
-
-	# Installing email_validator is repeated in setup/management.sh, but in setup/management.sh
-	# we install it inside a virtualenv. In this script, we don't have the virtualenv yet
-	# so we install the python package globally.
-	hide_output pip3 install "email_validator>=1.0.0" || exit 1
 
 	message_box "Mail-in-a-Box Installation" \
 		"Hello and thanks for deploying a Mail-in-a-Box!
@@ -52,7 +46,7 @@ you really want.
 			# user hit ESC/cancel
 			exit
 		fi
-		while ! python3 management/mailconfig.py validate-email "$EMAIL_ADDR"
+		while ! "$MIAB_PYTHON" management/mailconfig.py validate-email "$EMAIL_ADDR"
 		do
 			input_box "Your Email Address" \
 				"That's not a valid email address.\n\nWhat email address are you setting this box up to manage?" \

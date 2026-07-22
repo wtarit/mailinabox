@@ -104,6 +104,11 @@ export LC_TYPE=en_US.UTF-8
 # Fix so line drawing characters are shown correctly in Putty on Windows. See #744.
 export NCURSES_NO_UTF8_ACS=1
 
+# Provision the isolated management Python environment before setup questions
+# need to run any management code. Setup and migrations continue to use the
+# system Python; only the management application uses this environment.
+source setup/python.sh
+
 # Recall the last settings used if we're running this a second time.
 if [ -f /etc/mailinabox.conf ]; then
 	# Run any system migrations before proceeding. Since this is a second run,
