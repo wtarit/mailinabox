@@ -1,9 +1,9 @@
-#!/usr/bin/python3
+#!/usr/local/lib/mailinabox/env/bin/python
 
 # Migrates any file structures, database schemas, etc. between versions of Mail-in-a-Box.
 
-# We have to be careful here that any dependencies are already installed in the previous
-# version since this script runs before all other aspects of the setup script.
+# setup/python.sh provisions the locked runtime before this script runs. Keep
+# migrations compatible with the data and configuration left by older releases.
 
 import sys, os, os.path, glob, re, shutil
 
@@ -275,4 +275,3 @@ if __name__ == "__main__":
 	elif sys.argv[-1] == "--migrate":
 		# Perform migrations.
 		run_migrations()
-

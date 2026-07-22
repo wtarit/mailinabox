@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/local/lib/mailinabox/env/bin/python
 #
 # This is a helper tool for editing configuration files during the setup
 # process. The tool is given new values for settings as command-line
@@ -30,7 +30,7 @@ import sys, re
 
 # sanity check
 if len(sys.argv) < 3:
-	print("usage: python3 editconf.py /etc/file.conf [-e] [-s] [-w] [-c <CHARACTER>] [-t] NAME=VAL [NAME=VAL ...]")
+	print("usage: editconf.py /etc/file.conf [-e] [-s] [-w] [-c <CHARACTER>] [-t] NAME=VAL [NAME=VAL ...]")
 	sys.exit(1)
 
 # parse command line arguments

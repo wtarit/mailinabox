@@ -91,7 +91,7 @@ def get_ssl_certificates(env):
 			domains.setdefault(domain, []).append(cert)
 
 	# Sort the certificates to prefer good ones.
-	now = datetime.datetime.now(datetime.timezone.utc)
+	now = datetime.datetime.now(datetime.UTC)
 	ret = { }
 	for domain, cert_list in domains.items():
 		cert_list.sort(key = lambda cert : (
@@ -560,7 +560,7 @@ def check_certificate(domain, ssl_certificate, ssl_private_key, warn_if_expiring
 		return ("OK", None)
 
 	# Check that the certificate hasn't expired.
-	now = datetime.datetime.now(datetime.timezone.utc)
+	now = datetime.datetime.now(datetime.UTC)
 	cert_valid_from = cert.not_valid_before_utc
 	cert_valid_until = cert.not_valid_after_utc
 	if not(cert_valid_from <= now <= cert_valid_until):

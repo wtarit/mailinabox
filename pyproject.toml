@@ -2,7 +2,7 @@
 name = "mailinabox-management"
 version = "0.0.0"
 description = "Mail-in-a-Box management service and command-line tools"
-requires-python = ">=3.10,<3.15"
+requires-python = ">=3.14,<3.15"
 dependencies = [
 	"b2sdk",
 	"boto3",
@@ -35,7 +35,7 @@ required-version = "==0.11.30"
 line-length = 320 # https://github.com/astral-sh/ruff/issues/8106
 indent-width = 4
 
-target-version = "py310"
+target-version = "py314"
 
 preview = true
 

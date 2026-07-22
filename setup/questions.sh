@@ -6,10 +6,10 @@ if [ -z "${NONINTERACTIVE:-}" ]; then
 	# case, the nifty '[ -t 0 ]' test won't work. But with Vagrant we must suppress so we
 	# use a shell flag instead. Really suppress any output from installing dialog.
 	#
-	if [ ! -f /usr/bin/dialog ] || [ ! -f /usr/bin/python3 ]; then
+	if [ ! -f /usr/bin/dialog ]; then
 		echo "Installing packages needed for setup..."
 		apt-get -q -q update
-		apt_get_quiet install dialog python3 || exit 1
+		apt_get_quiet install dialog || exit 1
 	fi
 
 	message_box "Mail-in-a-Box Installation" \
@@ -156,7 +156,7 @@ if [ -z "${NONINTERACTIVE:-}" ] && [ "$SMTP_RELAY_OPTION_SET" = "0" ]; then
 			SMTP_RELAY_USERNAME
 		if [ "$SMTP_RELAY_USERNAME_EXITCODE" != "0" ]; then exit; fi
 
-		if python3 management/smtp_relay.py has-credentials \
+		if "$MIAB_PYTHON" management/smtp_relay.py has-credentials \
 			--host "$SMTP_RELAY_HOST" \
 			--port "$SMTP_RELAY_PORT" \
 			--security "$SMTP_RELAY_SECURITY" \
