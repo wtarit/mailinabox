@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/local/lib/mailinabox/env/bin/python
 
 import argparse
 import smtplib

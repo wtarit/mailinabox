@@ -1,6 +1,7 @@
 #!/usr/local/lib/mailinabox/env/bin/python
 # Utilities for installing and selecting SSL certificates.
 
+import datetime
 import os, os.path, re, shutil, subprocess, tempfile
 
 from utils import shell, safe_domain_name, sort_domains
@@ -90,14 +91,12 @@ def get_ssl_certificates(env):
 			domains.setdefault(domain, []).append(cert)
 
 	# Sort the certificates to prefer good ones.
-	import datetime
-	now = datetime.datetime.utcnow()
+	now = datetime.datetime.now(datetime.UTC)
 	ret = { }
 	for domain, cert_list in domains.items():
-		#for c in cert_list: print(domain, c.not_valid_before, c.not_valid_after, "("+str(now)+")", c.issuer, c.subject, c._filename)
 		cert_list.sort(key = lambda cert : (
 			# must be valid NOW
-			cert["cert"].not_valid_before <= now <= cert["cert"].not_valid_after,
+			cert["cert"].not_valid_before_utc <= now <= cert["cert"].not_valid_after_utc,
 
 			# prefer one that is not self-signed
 			cert["cert"].issuer != cert["cert"].subject,
@@ -110,7 +109,7 @@ def get_ssl_certificates(env):
 
 			# prefer one with the expiration furthest into the future so
 			# that we can easily rotate to new certs as we get them
-			cert["cert"].not_valid_after,
+			cert["cert"].not_valid_after_utc,
 
 			###########################################################
 			# We always choose the certificate that is good for the
@@ -451,7 +450,7 @@ def install_cert_copy_file(fn, env):
 	_all_domains, cn = get_certificate_domains(cert)
 	path = "{}-{}-{}.pem".format(
 		safe_domain_name(cn), # common name, which should be filename safe because it is IDNA-encoded, but in case of a malformed cert make sure it's ok to use as a filename
-		cert.not_valid_after.date().isoformat().replace("-", ""), # expiration date
+		cert.not_valid_after_utc.date().isoformat().replace("-", ""), # expiration date
 		hexlify(cert.fingerprint(hashes.SHA256())).decode("ascii")[0:8], # fingerprint prefix
 		)
 	ssl_certificate = os.path.join(os.path.join(env["STORAGE_ROOT"], 'ssl', path))
@@ -560,12 +559,12 @@ def check_certificate(domain, ssl_certificate, ssl_private_key, warn_if_expiring
 	if just_check_domain:
 		return ("OK", None)
 
-	# Check that the certificate hasn't expired. The datetimes returned by the
-	# certificate are 'naive' and in UTC. We need to get the current time in UTC.
-	import datetime
-	now = datetime.datetime.utcnow()
-	if not(cert.not_valid_before <= now <= cert.not_valid_after):
-		return (f"The certificate has expired or is not yet valid. It is valid from {cert.not_valid_before} to {cert.not_valid_after}.", None)
+	# Check that the certificate hasn't expired.
+	now = datetime.datetime.now(datetime.UTC)
+	cert_valid_from = cert.not_valid_before_utc
+	cert_valid_until = cert.not_valid_after_utc
+	if not(cert_valid_from <= now <= cert_valid_until):
+		return (f"The certificate has expired or is not yet valid. It is valid from {cert_valid_from} to {cert_valid_until}.", None)
 
 	# Next validate that the certificate is valid. This checks whether the certificate
 	# is self-signed, that the chain of trust makes sense, that it is signed by a CA
@@ -598,7 +597,7 @@ def check_certificate(domain, ssl_certificate, ssl_private_key, warn_if_expiring
 	# good.
 
 	# But is it expiring soon?
-	cert_expiration_date = cert.not_valid_after
+	cert_expiration_date = cert_valid_until
 	ndays = (cert_expiration_date-now).days
 	if not rounded_time or ndays <= 10:
 		# Yikes better renew soon!

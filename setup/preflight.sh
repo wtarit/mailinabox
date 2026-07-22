@@ -57,14 +57,9 @@ if [ -e ~/.wgetrc ]; then
 	exit
 fi
 
-# Check that we are running on x86_64 or i686 architecture, which are the only
-# ones we support / test.
+# Check that we are running on the supported x86_64 architecture.
 ARCHITECTURE=$(uname -m)
-if [ "$ARCHITECTURE" != "x86_64" ] && [ "$ARCHITECTURE" != "i686" ]; then
-	echo
-	echo "WARNING:"
-	echo "Mail-in-a-Box has only been tested on x86_64 and i686 platform"
-	echo "architectures. Your architecture, $ARCHITECTURE, may not work."
-	echo "You are on your own."
-	echo
+if [ "$ARCHITECTURE" != "x86_64" ]; then
+	echo "Mail-in-a-Box requires the x86_64 architecture. You are running $ARCHITECTURE." >&2
+	exit 1
 fi

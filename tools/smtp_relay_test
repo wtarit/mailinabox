@@ -10,7 +10,7 @@ if [ "${ENABLE_SMTP_RELAY:-0}" != "1" ]; then
 	exit 1
 fi
 
-exec python3 management/smtp_relay.py check \
+exec /usr/local/lib/mailinabox/env/bin/python management/smtp_relay.py check \
 	--host "$SMTP_RELAY_HOST" \
 	--port "$SMTP_RELAY_PORT" \
 	--security "$SMTP_RELAY_SECURITY" \

@@ -22,7 +22,7 @@ fi
 if [ "$ENABLE_SMTP_RELAY" = "1" ]; then
 	echo "Checking the authenticated SMTP relay..."
 	if [ -n "${SMTP_RELAY_PASSWORD:-}" ]; then
-		if ! printf '%s\n' "$SMTP_RELAY_PASSWORD" | python3 management/smtp_relay.py check \
+		if ! printf '%s\n' "$SMTP_RELAY_PASSWORD" | "$MIAB_PYTHON" management/smtp_relay.py check \
 			--host "$SMTP_RELAY_HOST" \
 			--port "$SMTP_RELAY_PORT" \
 			--security "$SMTP_RELAY_SECURITY" \
@@ -30,7 +30,7 @@ if [ "$ENABLE_SMTP_RELAY" = "1" ]; then
 			--password-stdin; then
 			exit 1
 		fi
-	elif ! python3 management/smtp_relay.py check \
+	elif ! "$MIAB_PYTHON" management/smtp_relay.py check \
 		--host "$SMTP_RELAY_HOST" \
 		--port "$SMTP_RELAY_PORT" \
 		--security "$SMTP_RELAY_SECURITY" \

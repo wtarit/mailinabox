@@ -1,8 +1,41 @@
+[project]
+name = "mailinabox-management"
+version = "0.0.0"
+description = "Mail-in-a-Box management service and command-line tools"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+	"b2sdk",
+	"boto3",
+	"cryptography",
+	"dnspython",
+	"email-validator>=1.0.0",
+	"exclusiveprocess",
+	"expiringdict",
+	"flask",
+	"gunicorn",
+	"idna>=2.0.0",
+	"postfix-mta-sts-resolver",
+	"psutil",
+	"pyotp",
+	"qrcode[pil]",
+	"python-dateutil",
+	"rtyaml",
+]
+
+[dependency-groups]
+dev = [
+	"ruff",
+]
+
+[tool.uv]
+package = false
+required-version = "==0.11.30"
+
 [tool.ruff]
 line-length = 320 # https://github.com/astral-sh/ruff/issues/8106
 indent-width = 4
 
-target-version = "py310"
+target-version = "py314"
 
 preview = true
 

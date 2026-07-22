@@ -5,49 +5,32 @@ source /etc/mailinabox.conf # load global vars
 
 echo "Installing Mail-in-a-Box system management daemon..."
 
-# DEPENDENCIES
-
-# duplicity is used to make backups of user data.
-#
-# virtualenv is used to isolate the Python 3 packages we
-# install via pip from the system-installed packages.
-#
-# certbot installs EFF's certbot which we use to
-# provision free TLS certificates.
-apt_install duplicity python3-pip virtualenv certbot rsync
-
-# b2sdk is used for backblaze backups.
-# boto3 is used for amazon aws backups.
-# Both are installed outside the pipenv, so they can be used by duplicity
-hide_output pip3 install --upgrade b2sdk boto3
-
-# Create a virtualenv for the installation of Python 3 packages
-# used by the management daemon.
-inst_dir=/usr/local/lib/mailinabox
-mkdir -p $inst_dir
-venv=$inst_dir/env
-if [ ! -d $venv ]; then
-	# A bug specific to Ubuntu 22.04 and Python 3.10 requires
-	# forcing a virtualenv directory layout option (see #2335
-	# and https://github.com/pypa/virtualenv/pull/2415). In
-	# our issue, reportedly installing python3-distutils didn't
-	# fix the problem.)
-	export DEB_PYTHON_INSTALL_LAYOUT='deb'
-	hide_output virtualenv -ppython3 $venv
+if [ -z "${MIAB_UV:-}" ]; then
+	# Allow this script to be run directly during development or recovery.
+	source setup/python.sh
 fi
 
-# Upgrade pip because the Ubuntu-packaged version is out of date.
-hide_output $venv/bin/pip install --upgrade pip
+# DEPENDENCIES
 
-# Install other Python 3 packages used by the management daemon.
-# The first line is the packages that Josh maintains himself!
-# NOTE: email_validator is repeated in setup/questions.sh, so please keep the versions synced.
-hide_output $venv/bin/pip install --upgrade \
-	rtyaml "email_validator>=1.0.0" "exclusiveprocess" \
-	flask dnspython python-dateutil expiringdict gunicorn \
-	qrcode[pil] pyotp \
-	"idna>=2.0.0" "cryptography==37.0.2" psutil postfix-mta-sts-resolver \
-	b2sdk boto3
+# duplicity is used to make backups of user data. It and its Python backend
+# dependencies are installed into a dedicated environment below.
+#
+# uv is used to install the locked Python packages into the management
+# environment created by setup/python.sh.
+#
+# build-essential is needed for the few duplicity backend dependencies that do
+# not publish wheels. gnupg and rsync are used by duplicity at runtime. certbot
+# provisions TLS certificates.
+apt_install build-essential gnupg certbot rsync
+
+inst_dir=/usr/local/lib/mailinabox
+mkdir -p "$inst_dir"
+venv="$inst_dir/env"
+
+# Management dependencies, including its own copies of b2sdk and boto3, are
+# installed by setup/python.sh from pyproject.toml and uv.lock. Duplicity has a
+# separate environment because it brings backend libraries for many providers.
+source setup/duplicity.sh
 
 # CONFIGURATION
 
@@ -99,9 +82,8 @@ mkdir -p /var/lib/mailinabox
 tr -cd '[:xdigit:]' < /dev/urandom | head -c 32 > /var/lib/mailinabox/api.key
 chmod 640 /var/lib/mailinabox/api.key
 
-source $venv/bin/activate
 export PYTHONPATH=$PWD/management
-exec gunicorn -b 127.0.0.1:10222 -w 1 --timeout 630 wsgi:app
+exec "$venv/bin/gunicorn" -b 127.0.0.1:10222 -w 1 --timeout 630 wsgi:app
 EOF
 chmod +x $inst_dir/start
 cp --remove-destination conf/mailinabox.service /lib/systemd/system/mailinabox.service # target was previously a symlink so remove it first

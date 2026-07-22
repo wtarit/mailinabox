@@ -217,7 +217,7 @@ if [ "$ENABLE_SMTP_RELAY" = "1" ]; then
 			"$SMTP_RELAY_USERNAME" \
 			"$SMTP_RELAY_PASSWORD" > /etc/postfix/sasl_passwd)
 	fi
-	if ! python3 management/smtp_relay.py has-credentials \
+	if ! "$MIAB_PYTHON" management/smtp_relay.py has-credentials \
 		--host "$SMTP_RELAY_HOST" \
 		--port "$SMTP_RELAY_PORT" \
 		--security "$SMTP_RELAY_SECURITY" \

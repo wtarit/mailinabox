@@ -104,6 +104,10 @@ export LC_TYPE=en_US.UTF-8
 # Fix so line drawing characters are shown correctly in Putty on Windows. See #744.
 export NCURSES_NO_UTF8_ACS=1
 
+# Provision the uv-managed Python runtime before setup, migration, and
+# management code needs to run.
+source setup/python.sh
+
 # Recall the last settings used if we're running this a second time.
 if [ -f /etc/mailinabox.conf ]; then
 	# Run any system migrations before proceeding. Since this is a second run,
@@ -153,7 +157,7 @@ chmod +x /usr/local/bin/mailinabox
 source setup/questions.sh
 
 if [ "$ENABLE_SMTP_RELAY" = "1" ]; then
-	if ! SMTP_RELAY_NORMALIZED=$(python3 management/smtp_relay.py normalize \
+	if ! SMTP_RELAY_NORMALIZED=$("$MIAB_PYTHON" management/smtp_relay.py normalize \
 		--host "$SMTP_RELAY_HOST" \
 		--port "$SMTP_RELAY_PORT" \
 		--security "$SMTP_RELAY_SECURITY" \
@@ -174,7 +178,7 @@ if [ "$ENABLE_SMTP_RELAY" = "1" ]; then
 		echo "The SMTP relay password cannot contain a newline." >&2
 		exit 2
 	fi
-	if [ -z "${SMTP_RELAY_PASSWORD:-}" ] && ! python3 management/smtp_relay.py has-credentials \
+	if [ -z "${SMTP_RELAY_PASSWORD:-}" ] && ! "$MIAB_PYTHON" management/smtp_relay.py has-credentials \
 		--host "$SMTP_RELAY_HOST" \
 		--port "$SMTP_RELAY_PORT" \
 		--security "$SMTP_RELAY_SECURITY" \

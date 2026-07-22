@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/local/lib/mailinabox/env/bin/python
 #
 # This is a command-line script for calling management APIs
 # on the Mail-in-a-Box control panel backend. The script
