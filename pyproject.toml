@@ -6,7 +6,7 @@ requires-python = ">=3.10,<3.15"
 dependencies = [
 	"b2sdk",
 	"boto3",
-	"cryptography>=37.0.2",
+	"cryptography",
 	"dnspython",
 	"email-validator>=1.0.0",
 	"exclusiveprocess",

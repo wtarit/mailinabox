@@ -783,7 +783,7 @@ dev = [
 requires-dist = [
     { name = "b2sdk" },
     { name = "boto3" },
-    { name = "cryptography", specifier = ">=37.0.2" },
+    { name = "cryptography" },
     { name = "dnspython" },
     { name = "email-validator", specifier = ">=1.0.0" },
     { name = "exclusiveprocess" },
