@@ -16,6 +16,9 @@ from exclusiveprocess import Lock
 from utils import load_environment, shell, wait_for_service
 import operator
 
+DUPLICITY_BIN = "/usr/local/lib/mailinabox/duplicity-env/bin/duplicity"
+
+
 def backup_status(env):
 	# If backups are disabled, return no status.
 	config = get_backup_config(env)
@@ -56,7 +59,7 @@ def backup_status(env):
 		}
 
 	code, collection_status = shell('check_output', [
-		"/usr/bin/duplicity",
+		DUPLICITY_BIN,
 		"collection-status",
 		"--archive-dir", backup_cache_dir,
 		"--gpg-options", "'--cipher-algo=AES256'",
@@ -322,7 +325,7 @@ def perform_backup(full_backup):
 	# after the first backup. See #396.
 	try:
 		shell('check_call', [
-			"/usr/bin/duplicity",
+			DUPLICITY_BIN,
 			"full" if full_backup else "incr",
 			"--verbosity", "warning", "--no-print-statistics",
 			"--archive-dir", backup_cache_dir,
@@ -347,7 +350,7 @@ def perform_backup(full_backup):
 	# Remove old backups. This deletes all backup data no longer needed
 	# from more than 3 days ago.
 	shell('check_call', [
-		"/usr/bin/duplicity",
+		DUPLICITY_BIN,
 		"remove-older-than",
 		"%dD" % config["min_age_in_days"],
 		"--verbosity", "error",
@@ -364,7 +367,7 @@ def perform_backup(full_backup):
 	# That may be unlikely here but we may as well ensure we tidy up if
 	# that does happen - it might just have been a poorly timed reboot.
 	shell('check_call', [
-		"/usr/bin/duplicity",
+		DUPLICITY_BIN,
 		"cleanup",
 		"--verbosity", "error",
 		"--archive-dir", backup_cache_dir,
@@ -402,7 +405,7 @@ def run_duplicity_verification():
 	backup_cache_dir = os.path.join(backup_root, 'cache')
 
 	shell('check_call', [
-		"/usr/bin/duplicity",
+		DUPLICITY_BIN,
 		"--verbosity", "info",
 		"verify",
 		"--compare-data",
@@ -419,7 +422,7 @@ def run_duplicity_restore(args):
 	config = get_backup_config(env)
 	backup_cache_dir = os.path.join(env["STORAGE_ROOT"], 'backup', 'cache')
 	shell('check_call', [
-		"/usr/bin/duplicity",
+		DUPLICITY_BIN,
 		"restore",
 		"--archive-dir", backup_cache_dir,
 		*get_duplicity_additional_args(env),
@@ -434,7 +437,7 @@ def print_duplicity_command():
 	backup_cache_dir = os.path.join(env["STORAGE_ROOT"], 'backup', 'cache')
 	for k, v in get_duplicity_env_vars(env).items():
 		print(f"export {k}={shlex.quote(v)}")
-	print("duplicity", "{command}", shlex.join([
+	print(DUPLICITY_BIN, "{command}", shlex.join([
 		"--archive-dir", backup_cache_dir,
 		*get_duplicity_additional_args(env),
 		get_duplicity_target_url(config)

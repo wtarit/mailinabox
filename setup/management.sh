@@ -12,23 +12,25 @@ fi
 
 # DEPENDENCIES
 
-# duplicity is used to make backups of user data.
-# Install distribution copies of b2sdk and boto3 for Ubuntu's
-# /usr/bin/duplicity plugins.
+# duplicity is used to make backups of user data. It and its Python backend
+# dependencies are installed into a dedicated environment below.
 #
 # uv is used to install the locked Python packages into the management
 # environment created by setup/python.sh.
 #
-# certbot installs EFF's certbot which we use to
-# provision free TLS certificates.
-apt_install duplicity python3-b2sdk python3-boto3 certbot rsync
+# build-essential is needed for the few duplicity backend dependencies that do
+# not publish wheels. gnupg and rsync are used by duplicity at runtime. certbot
+# provisions TLS certificates.
+apt_install build-essential gnupg certbot rsync
 
 inst_dir=/usr/local/lib/mailinabox
 mkdir -p "$inst_dir"
 venv="$inst_dir/env"
 
 # Management dependencies, including its own copies of b2sdk and boto3, are
-# installed by setup/python.sh from pyproject.toml and uv.lock.
+# installed by setup/python.sh from pyproject.toml and uv.lock. Duplicity has a
+# separate environment because it brings backend libraries for many providers.
+source setup/duplicity.sh
 
 # CONFIGURATION
 

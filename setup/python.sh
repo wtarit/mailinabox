@@ -61,6 +61,7 @@ fi
 export MIAB_UV=$uv
 export MIAB_VENV=$venv
 export MIAB_PYTHON=$venv/bin/python
+export MIAB_APP_PYTHON=$app_python
 export UV_PROJECT_ENVIRONMENT=$venv
 
 # The lockfile is part of the repository and is authoritative during setup.
