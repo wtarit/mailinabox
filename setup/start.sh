@@ -11,6 +11,11 @@ if [ -n "${ENABLE_POSTGREY+x}" ]; then
 else
 	POSTGREY_OPTION_SET=0
 fi
+if [ -n "${ENABLE_SMTP_RELAY+x}" ]; then
+	SMTP_RELAY_OPTION_SET=1
+else
+	SMTP_RELAY_OPTION_SET=0
+fi
 
 # Postgrey can be selected on the command line. Parse the option before the
 # preflight checks so `setup/start.sh --help` is safe to run on a workstation.
@@ -24,6 +29,30 @@ while [ "$#" -gt 0 ]; do
 			ENABLE_POSTGREY=0
 			POSTGREY_OPTION_SET=1
 			;;
+		--enable-smtp-relay)
+			ENABLE_SMTP_RELAY=1
+			SMTP_RELAY_OPTION_SET=1
+			;;
+		--disable-smtp-relay)
+			ENABLE_SMTP_RELAY=0
+			SMTP_RELAY_OPTION_SET=1
+			;;
+		--smtp-relay-host|--smtp-relay-port|--smtp-relay-security|--smtp-relay-username|--smtp-relay-password-file)
+			if [ "$#" -lt 2 ] || [ -z "$2" ]; then
+				echo "$1 requires a value." >&2
+				exit 2
+			fi
+			case "$1" in
+				--smtp-relay-host) SMTP_RELAY_HOST=$2 ;;
+				--smtp-relay-port) SMTP_RELAY_PORT=$2 ;;
+				--smtp-relay-security) SMTP_RELAY_SECURITY=$2 ;;
+				--smtp-relay-username) SMTP_RELAY_USERNAME=$2 ;;
+				--smtp-relay-password-file) SMTP_RELAY_PASSWORD_FILE=$2 ;;
+			esac
+			ENABLE_SMTP_RELAY=1
+			SMTP_RELAY_OPTION_SET=1
+			shift
+			;;
 		--help|-h)
 			cat <<'EOF'
 Usage: sudo setup/start.sh [OPTION]...
@@ -31,6 +60,15 @@ Usage: sudo setup/start.sh [OPTION]...
 Optional services:
   --disable-postgrey    Disable greylisting and remove Postgrey.
   --enable-postgrey     Enable greylisting (the default).
+
+Outbound mail delivery:
+  --enable-smtp-relay             Send outbound mail through an authenticated SMTP relay.
+  --disable-smtp-relay            Deliver outbound mail directly (the default).
+  --smtp-relay-host HOST          Relay hostname (implies --enable-smtp-relay).
+  --smtp-relay-port PORT          Relay port (default: 587).
+  --smtp-relay-security MODE      starttls (default) or implicit-tls.
+  --smtp-relay-username USERNAME  Relay authentication username.
+  --smtp-relay-password-file FILE Read the relay password from FILE.
 EOF
 			exit 0
 			;;
@@ -89,6 +127,16 @@ if [ "$ENABLE_POSTGREY" != "0" ] && [ "$ENABLE_POSTGREY" != "1" ]; then
 	exit 2
 fi
 
+ENABLE_SMTP_RELAY="${ENABLE_SMTP_RELAY:-${DEFAULT_ENABLE_SMTP_RELAY:-0}}"
+SMTP_RELAY_HOST="${SMTP_RELAY_HOST:-${DEFAULT_SMTP_RELAY_HOST:-}}"
+SMTP_RELAY_PORT="${SMTP_RELAY_PORT:-${DEFAULT_SMTP_RELAY_PORT:-587}}"
+SMTP_RELAY_SECURITY="${SMTP_RELAY_SECURITY:-${DEFAULT_SMTP_RELAY_SECURITY:-starttls}}"
+SMTP_RELAY_USERNAME="${SMTP_RELAY_USERNAME:-${DEFAULT_SMTP_RELAY_USERNAME:-}}"
+if [ "$ENABLE_SMTP_RELAY" != "0" ] && [ "$ENABLE_SMTP_RELAY" != "1" ]; then
+	echo "ENABLE_SMTP_RELAY must be either 0 or 1." >&2
+	exit 2
+fi
+
 # Put a start script in a global location. We tell the user to run 'mailinabox'
 # in the first dialog prompt, so we should do this before that starts.
 cat > /usr/local/bin/mailinabox << EOF;
@@ -103,6 +151,44 @@ chmod +x /usr/local/bin/mailinabox
 # non-interactively, be sure to set values for all! Also sets STORAGE_USER and
 # STORAGE_ROOT.
 source setup/questions.sh
+
+if [ "$ENABLE_SMTP_RELAY" = "1" ]; then
+	if ! SMTP_RELAY_NORMALIZED=$(python3 management/smtp_relay.py normalize \
+		--host "$SMTP_RELAY_HOST" \
+		--port "$SMTP_RELAY_PORT" \
+		--security "$SMTP_RELAY_SECURITY" \
+		--username "$SMTP_RELAY_USERNAME"); then
+		exit 2
+	fi
+	IFS=$'\t' read -r SMTP_RELAY_HOST SMTP_RELAY_PORT <<< "$SMTP_RELAY_NORMALIZED"
+	unset SMTP_RELAY_NORMALIZED
+
+	if [ -n "${SMTP_RELAY_PASSWORD_FILE:-}" ]; then
+		if [ ! -r "$SMTP_RELAY_PASSWORD_FILE" ]; then
+			echo "Cannot read SMTP relay password file: $SMTP_RELAY_PASSWORD_FILE" >&2
+			exit 2
+		fi
+		SMTP_RELAY_PASSWORD=$(< "$SMTP_RELAY_PASSWORD_FILE")
+	fi
+	if [[ "${SMTP_RELAY_PASSWORD:-}" == *$'\n'* ]]; then
+		echo "The SMTP relay password cannot contain a newline." >&2
+		exit 2
+	fi
+	if [ -z "${SMTP_RELAY_PASSWORD:-}" ] && ! python3 management/smtp_relay.py has-credentials \
+		--host "$SMTP_RELAY_HOST" \
+		--port "$SMTP_RELAY_PORT" \
+		--security "$SMTP_RELAY_SECURITY" \
+		--username "$SMTP_RELAY_USERNAME" >/dev/null 2>&1; then
+		echo "A non-empty SMTP relay password is required. Use --smtp-relay-password-file for non-interactive setup." >&2
+		exit 2
+	fi
+else
+	SMTP_RELAY_HOST=
+	SMTP_RELAY_PORT=587
+	SMTP_RELAY_SECURITY=starttls
+	SMTP_RELAY_USERNAME=
+	unset SMTP_RELAY_PASSWORD
+fi
 
 # Run some network checks to make sure setup on this machine makes sense.
 # Skip on existing installs since we don't want this to block the ability to
@@ -149,6 +235,11 @@ PRIVATE_IP=$PRIVATE_IP
 PRIVATE_IPV6=$PRIVATE_IPV6
 MTA_STS_MODE=${DEFAULT_MTA_STS_MODE:-enforce}
 ENABLE_POSTGREY=$ENABLE_POSTGREY
+ENABLE_SMTP_RELAY=$ENABLE_SMTP_RELAY
+SMTP_RELAY_HOST=$SMTP_RELAY_HOST
+SMTP_RELAY_PORT=$SMTP_RELAY_PORT
+SMTP_RELAY_SECURITY=$SMTP_RELAY_SECURITY
+SMTP_RELAY_USERNAME=$SMTP_RELAY_USERNAME
 EOF
 
 # Start service configuration.

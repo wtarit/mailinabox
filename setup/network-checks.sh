@@ -19,40 +19,60 @@ if host "$PRIMARY_HOSTNAME.dbl.spamhaus.org" > /dev/null; then
 	exit 1
 fi
 
-# Stop if the IPv4 address is listed in the ZEN Spamhouse Block List.
-# The user might have ended up on an IP address that was previously in use
-# by a spammer, or the user may be deploying on a residential network. We
-# will not be able to reliably send mail in these cases.
-REVERSED_IPV4=$(echo "$PUBLIC_IP" | sed "s/\([0-9]*\).\([0-9]*\).\([0-9]*\).\([0-9]*\)/\4.\3.\2.\1/")
-if host "$REVERSED_IPV4.zen.spamhaus.org" > /dev/null; then
-	echo
-	echo "The IP address $PUBLIC_IP is listed in the Spamhaus Block List."
-	echo "See http://www.spamhaus.org/query/ip/$PUBLIC_IP."
-	echo
-	echo "You will not be able to send mail using this machine, so setup"
-	echo "cannot continue."
-	echo
-	echo "Associate a different IP address with this machine if possible."
-	echo "Many residential network IP addresses are listed, so Mail-in-a-Box"
-	echo "typically cannot be used on a residential Internet connection."
-	echo
-	exit 1
-fi
+if [ "$ENABLE_SMTP_RELAY" = "1" ]; then
+	echo "Checking the authenticated SMTP relay..."
+	if [ -n "${SMTP_RELAY_PASSWORD:-}" ]; then
+		if ! printf '%s\n' "$SMTP_RELAY_PASSWORD" | python3 management/smtp_relay.py check \
+			--host "$SMTP_RELAY_HOST" \
+			--port "$SMTP_RELAY_PORT" \
+			--security "$SMTP_RELAY_SECURITY" \
+			--username "$SMTP_RELAY_USERNAME" \
+			--password-stdin; then
+			exit 1
+		fi
+	elif ! python3 management/smtp_relay.py check \
+		--host "$SMTP_RELAY_HOST" \
+		--port "$SMTP_RELAY_PORT" \
+		--security "$SMTP_RELAY_SECURITY" \
+		--username "$SMTP_RELAY_USERNAME"; then
+		exit 1
+	fi
+else
+	# Stop if the IPv4 address is listed in the ZEN Spamhouse Block List.
+	# The user might have ended up on an IP address that was previously in use
+	# by a spammer, or the user may be deploying on a residential network. We
+	# will not be able to reliably send mail in these cases.
+	REVERSED_IPV4=$(echo "$PUBLIC_IP" | sed "s/\([0-9]*\).\([0-9]*\).\([0-9]*\).\([0-9]*\)/\4.\3.\2.\1/")
+	if host "$REVERSED_IPV4.zen.spamhaus.org" > /dev/null; then
+		echo
+		echo "The IP address $PUBLIC_IP is listed in the Spamhaus Block List."
+		echo "See http://www.spamhaus.org/query/ip/$PUBLIC_IP."
+		echo
+		echo "You will not be able to send mail using this machine, so setup"
+		echo "cannot continue."
+		echo
+		echo "Associate a different IP address with this machine if possible."
+		echo "Many residential network IP addresses are listed, so Mail-in-a-Box"
+		echo "typically cannot be used on a residential Internet connection."
+		echo
+		exit 1
+	fi
 
-# Stop if we cannot make an outbound connection on port 25. Many residential
-# networks block outbound port 25 to prevent their network from sending spam.
-# See if we can reach one of Google's MTAs with a 5-second timeout.
-if ! nc -z -w5 aspmx.l.google.com 25; then
-	echo
-	echo "Outbound mail (port 25) seems to be blocked by your network."
-	echo
-	echo "You will not be able to send mail using this machine, so setup"
-	echo "cannot continue."
-	echo
-	echo "Many residential networks block port 25 to prevent hijacked"
-	echo "machines from being able to send spam. I just tried to connect"
-	echo "to Google's mail server on port 25 but the connection did not"
-	echo "succeed."
-	echo
-	exit 1
+	# Stop if we cannot make an outbound connection on port 25. Many residential
+	# networks block outbound port 25 to prevent their network from sending spam.
+	# See if we can reach one of Google's MTAs with a 5-second timeout.
+	if ! nc -z -w5 aspmx.l.google.com 25; then
+		echo
+		echo "Outbound mail (port 25) seems to be blocked by your network."
+		echo
+		echo "You will not be able to send mail using this machine, so setup"
+		echo "cannot continue."
+		echo
+		echo "Many residential networks block port 25 to prevent hijacked"
+		echo "machines from being able to send spam. I just tried to connect"
+		echo "to Google's mail server on port 25 but the connection did not"
+		echo "succeed."
+		echo
+		exit 1
+	fi
 fi

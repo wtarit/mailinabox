@@ -112,6 +112,84 @@ if [ -z "${NONINTERACTIVE:-}" ] && [ "$POSTGREY_OPTION_SET" = "0" ]; then
 	done <<< "$OPTIONAL_SERVICES"
 fi
 
+# Choose how Postfix delivers outbound mail. SMTP relay configuration is kept
+# separate from the optional-services checklist because Postfix remains
+# installed and continues to receive inbound mail in either mode.
+if [ -z "${NONINTERACTIVE:-}" ] && [ "$SMTP_RELAY_OPTION_SET" = "0" ]; then
+	if [ "$ENABLE_SMTP_RELAY" = "1" ]; then
+		OUTBOUND_DELIVERY_DEFAULT=relay
+	else
+		OUTBOUND_DELIVERY_DEFAULT=direct
+	fi
+
+	menu_box "Outbound Mail Delivery" \
+		"Choose how this box sends mail to remote recipients." \
+		"$OUTBOUND_DELIVERY_DEFAULT" \
+		OUTBOUND_DELIVERY \
+		direct "Deliver directly (requires outbound port 25 and a reputable public IP)" \
+		relay "Use an authenticated SMTP relay provider"
+
+	if [ "$OUTBOUND_DELIVERY_EXITCODE" != "0" ]; then
+		exit
+	fi
+
+	if [ "$OUTBOUND_DELIVERY" = "relay" ]; then
+		ENABLE_SMTP_RELAY=1
+
+		input_box "SMTP Relay Hostname" \
+			"Enter the fully-qualified hostname supplied by your SMTP relay provider." \
+			"$SMTP_RELAY_HOST" \
+			SMTP_RELAY_HOST
+		if [ "$SMTP_RELAY_HOST_EXITCODE" != "0" ]; then exit; fi
+
+		input_box "SMTP Relay Port" \
+			"Enter the SMTP relay port. Most providers use port 587 with STARTTLS." \
+			"$SMTP_RELAY_PORT" \
+			SMTP_RELAY_PORT
+		if [ "$SMTP_RELAY_PORT_EXITCODE" != "0" ]; then exit; fi
+
+		menu_box "SMTP Relay Security" \
+			"Choose the TLS mode specified by your SMTP relay provider." \
+			"$SMTP_RELAY_SECURITY" \
+			SMTP_RELAY_SECURITY \
+			starttls "STARTTLS (usually port 587)" \
+			implicit-tls "Implicit TLS (usually port 465)"
+		if [ "$SMTP_RELAY_SECURITY_EXITCODE" != "0" ]; then exit; fi
+
+		input_box "SMTP Relay Username" \
+			"Enter the authentication username supplied by your SMTP relay provider." \
+			"$SMTP_RELAY_USERNAME" \
+			SMTP_RELAY_USERNAME
+		if [ "$SMTP_RELAY_USERNAME_EXITCODE" != "0" ]; then exit; fi
+
+		if python3 management/smtp_relay.py has-credentials \
+			--host "$SMTP_RELAY_HOST" \
+			--port "$SMTP_RELAY_PORT" \
+			--security "$SMTP_RELAY_SECURITY" \
+			--username "$SMTP_RELAY_USERNAME" >/dev/null 2>&1; then
+			SMTP_RELAY_PASSWORD_PROMPT="Enter a new SMTP relay password, or leave this blank to keep the configured password."
+			SMTP_RELAY_HAS_CREDENTIALS=1
+		else
+			SMTP_RELAY_PASSWORD_PROMPT="Enter the authentication password supplied by your SMTP relay provider."
+			SMTP_RELAY_HAS_CREDENTIALS=0
+		fi
+
+		while true; do
+			password_box "SMTP Relay Password" "$SMTP_RELAY_PASSWORD_PROMPT" SMTP_RELAY_PASSWORD
+			if [ "$SMTP_RELAY_PASSWORD_EXITCODE" != "0" ]; then exit; fi
+			if [ -n "$SMTP_RELAY_PASSWORD" ] || [ "$SMTP_RELAY_HAS_CREDENTIALS" = "1" ]; then
+				break
+			fi
+			message_box "SMTP Relay Password Required" "An SMTP relay password is required."
+		done
+
+		message_box "SMTP Relay DNS" \
+			"Your relay provider may require provider-specific SPF, DKIM, or domain-verification records. Configure those records separately using your provider's instructions."
+	else
+		ENABLE_SMTP_RELAY=0
+	fi
+fi
+
 # If the machine is behind a NAT, inside a VM, etc., it may not know
 # its IP address on the public network / the Internet. Ask the Internet
 # and possibly confirm with user.
