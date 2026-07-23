@@ -5,7 +5,18 @@
 # -o pipefail: don't ignore errors in the non-last command in a pipeline
 set -euo pipefail
 
-PHP_VER=8.0
+PHP_VER=8.2
+MIN_NEXTCLOUD_MAJOR=26
+
+function nextcloud_version_is_supported {
+	local version=$1
+
+	if [[ ! $version =~ ^([0-9]+)\. ]]; then
+		return 1
+	fi
+
+	(( 10#${BASH_REMATCH[1]} >= MIN_NEXTCLOUD_MAJOR ))
+}
 
 function hide_output {
 	# This function hides the output of a command unless the command fails

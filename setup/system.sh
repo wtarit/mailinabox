@@ -107,8 +107,8 @@ fi
 # come from there and minimal Ubuntu installs may have it turned off.
 hide_output add-apt-repository -y universe
 
-# Stock PHP is now 8.1, but we're transitioning through 8.0 because
-# of Nextcloud.
+# Ubuntu 22.04 provides PHP 8.1, but PHP 8.2 is supported across Nextcloud's
+# upgrade path from version 26 to currently maintained releases.
 hide_output add-apt-repository --y ppa:ondrej/php
 
 # ### Update Packages
