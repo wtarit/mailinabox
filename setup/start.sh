@@ -156,20 +156,6 @@ chmod +x /usr/local/bin/mailinabox
 # STORAGE_ROOT.
 source setup/questions.sh
 
-# PHP 8.2 cannot run the legacy Nextcloud releases that older Mail-in-a-Box
-# versions used for sequential upgrades. Refuse the upgrade before changing
-# PHP packages or services so the existing installation remains operational.
-NEXTCLOUD_CONFIG="$STORAGE_ROOT/owncloud/config.php"
-if [ -f "$NEXTCLOUD_CONFIG" ]; then
-	CURRENT_NEXTCLOUD_VER=$(NEXTCLOUD_CONFIG="$NEXTCLOUD_CONFIG" php -r "include(getenv('NEXTCLOUD_CONFIG')); echo(\$CONFIG['version']);")
-	if ! nextcloud_version_is_supported "$CURRENT_NEXTCLOUD_VER"; then
-		echo "This Mail-in-a-Box release requires Nextcloud $MIN_NEXTCLOUD_MAJOR or newer." >&2
-		echo "The installed Nextcloud version is ${CURRENT_NEXTCLOUD_VER:-unknown}." >&2
-		echo "Upgrade with the latest PHP 8.0-based Mail-in-a-Box release first, then retry." >&2
-		exit 1
-	fi
-fi
-
 if [ "$ENABLE_SMTP_RELAY" = "1" ]; then
 	if ! SMTP_RELAY_NORMALIZED=$("$MIAB_PYTHON" management/smtp_relay.py normalize \
 		--host "$SMTP_RELAY_HOST" \

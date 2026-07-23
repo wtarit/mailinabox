@@ -68,6 +68,11 @@ Begin the installation.
 
 The installation will install, uninstall, and configure packages to turn the machine into a working, good mail server.
 
+Migrating from upstream
+-----------------------
+
+Before switching an existing installation to this fork, first upgrade it to upstream Mail-in-a-Box v76 and run upstream setup to completion. Do not switch directly from an older upstream release. This fork assumes the installation already has Nextcloud 26 and does not include the legacy Nextcloud 20–25 sequential upgrade chain.
+
 Optional services
 -----------------
 

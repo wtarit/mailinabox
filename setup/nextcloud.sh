@@ -18,7 +18,7 @@ echo "Installing Nextcloud (contacts/calendar)..."
 # * Check https://docs.nextcloud.com/server/latest/admin_manual/installation/system_requirements.html
 #   for whether it supports the version of PHP available on this machine.
 # * Nextcloud only supports upgrades from consecutive major versions. Existing
-#   installations must already meet MIN_NEXTCLOUD_MAJOR before this script runs.
+#   installations must follow the upstream migration requirement in README.md.
 # * The hash is the SHA1 hash of the ZIP package, which you can find by just running this script and
 #   copying it from the error message when it doesn't match what is below.
 nextcloud_ver=26.0.13
@@ -46,31 +46,6 @@ calendar_hash=a995bca4effeecb2cab25f3bbeac9bfe05fee766
 # Always ensure the versions are supported, see https://apps.nextcloud.com/apps/user_external
 user_external_ver=3.3.0
 user_external_hash=280d24eb2a6cb56b4590af8847f925c28d8d853e
-
-# Current Nextcloud Version, #1623
-# Checking /usr/local/lib/owncloud/version.php shows version of the Nextcloud application, not the DB.
-# $STORAGE_ROOT/owncloud is kept together even during a backup, so rely on config.php instead. Use the
-# existing default PHP executable for this preflight check because PHP $PHP_VER is installed below.
-if [ -f "$STORAGE_ROOT/owncloud/config.php" ]; then
-	CURRENT_NEXTCLOUD_VER=$(php -r "include(\"$STORAGE_ROOT/owncloud/config.php\"); echo(\$CONFIG['version']);")
-else
-	CURRENT_NEXTCLOUD_VER=""
-fi
-
-if [ -n "$CURRENT_NEXTCLOUD_VER" ] && ! nextcloud_version_is_supported "$CURRENT_NEXTCLOUD_VER"; then
-	echo "Nextcloud $CURRENT_NEXTCLOUD_VER cannot be upgraded with PHP $PHP_VER." >&2
-	echo "Upgrade to Nextcloud $MIN_NEXTCLOUD_MAJOR with a PHP 8.0-based Mail-in-a-Box release first." >&2
-	exit 1
-fi
-
-if [ -n "$CURRENT_NEXTCLOUD_VER" ]; then
-	CURRENT_NEXTCLOUD_MAJOR=${CURRENT_NEXTCLOUD_VER%%.*}
-	TARGET_NEXTCLOUD_MAJOR=${nextcloud_ver%%.*}
-	if (( 10#$CURRENT_NEXTCLOUD_MAJOR > 10#$TARGET_NEXTCLOUD_MAJOR )); then
-		echo "Refusing to downgrade Nextcloud $CURRENT_NEXTCLOUD_VER to $nextcloud_ver." >&2
-		exit 1
-	fi
-fi
 
 # Developer advice (test plan)
 # ----------------------------
@@ -182,6 +157,19 @@ InstallNextcloud() {
 		sudo -u www-data php"$PHP_VER" /usr/local/lib/owncloud/occ db:convert-filecache-bigint --no-interaction
 	fi
 }
+
+# Current Nextcloud Version, #1623
+# Checking /usr/local/lib/owncloud/version.php shows version of the Nextcloud application, not the DB
+# $STORAGE_ROOT/owncloud is kept together even during a backup. It is better to rely on config.php than
+# version.php since the restore procedure can leave the system in a state where you have a newer Nextcloud
+# application version than the database.
+
+# If config.php exists, get version number, otherwise CURRENT_NEXTCLOUD_VER is empty.
+if [ -f "$STORAGE_ROOT/owncloud/config.php" ]; then
+	CURRENT_NEXTCLOUD_VER=$(php"$PHP_VER" -r "include(\"$STORAGE_ROOT/owncloud/config.php\"); echo(\$CONFIG['version']);")
+else
+	CURRENT_NEXTCLOUD_VER=""
+fi
 
 # If the Nextcloud directory is missing (never been installed before, or the nextcloud version to be installed is different
 # from the version currently installed, do the install/upgrade
