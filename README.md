@@ -71,7 +71,7 @@ The installation will install, uninstall, and configure packages to turn the mac
 Migrating from upstream
 -----------------------
 
-Before switching an existing installation to this fork, first upgrade it to upstream Mail-in-a-Box v76 and run upstream setup to completion. Do not switch directly from an older upstream release. This fork assumes the installation already has Nextcloud 26 and does not include the legacy Nextcloud 20–25 sequential upgrade chain.
+Before switching an existing installation to this fork, first upgrade it to upstream Mail-in-a-Box v76 and run upstream setup to completion. Do not switch directly from an older upstream release. This fork assumes the installation already has Nextcloud 26, does not include the legacy Nextcloud 20–25 upgrade chain, and upgrades Nextcloud through each required major release from there.
 
 Optional services
 -----------------

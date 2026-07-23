@@ -21,31 +21,31 @@ echo "Installing Nextcloud (contacts/calendar)..."
 #   installations must follow the upstream migration requirement in README.md.
 # * The hash is the SHA1 hash of the ZIP package, which you can find by just running this script and
 #   copying it from the error message when it doesn't match what is below.
-nextcloud_ver=26.0.13
-nextcloud_hash=d5c10b650e5396d5045131c6d22c02a90572527c
+nextcloud_ver=34.0.1
+nextcloud_hash=576623416739b81e59d8c4df71a7b087fa6d985c
 
 # Nextcloud apps
 # --------------
-# * Find the most recent tag that is compatible with the Nextcloud version above by:
-#   https://github.com/nextcloud-releases/contacts/tags
-#   https://github.com/nextcloud-releases/calendar/tags
-#   https://github.com/nextcloud/user_external/tags
+# * Find the most recent release that is compatible with the Nextcloud version above by:
+#   https://apps.nextcloud.com/apps/contacts
+#   https://apps.nextcloud.com/apps/calendar
+#   https://apps.nextcloud.com/apps/user_external
 #
-# * For these three packages, contact, calendar and user_external, the hash is the SHA1 hash of
-# the ZIP package, which you can find by just running this script and copying it from
+# * For these three packages, contacts, calendar and user_external, the hash is the SHA1 hash of
+# the release package, which you can find by just running this script and copying it from
 # the error message when it doesn't match what is below:
 
 # Always ensure the versions are supported, see https://apps.nextcloud.com/apps/contacts
-contacts_ver=5.5.3
-contacts_hash=799550f38e46764d90fa32ca1a6535dccd8316e5
+contacts_ver=8.7.4
+contacts_hash=76ba6ee92e7be7fd1d7cb82e539dbc9309a3e41c
 
 # Always ensure the versions are supported, see https://apps.nextcloud.com/apps/calendar
-calendar_ver=4.7.6
-calendar_hash=a995bca4effeecb2cab25f3bbeac9bfe05fee766
+calendar_ver=6.5.1
+calendar_hash=a4155ba3b7caac5e5add69d1673fbd981c19cc13
 
 # Always ensure the versions are supported, see https://apps.nextcloud.com/apps/user_external
-user_external_ver=3.3.0
-user_external_hash=280d24eb2a6cb56b4590af8847f925c28d8d853e
+user_external_ver=4.0.0
+user_external_hash=214497dd8691f279ba3740797c565310f0793054
 
 # Developer advice (test plan)
 # ----------------------------
@@ -93,6 +93,14 @@ InstallNextcloud() {
 	# Download and verify
 	wget_verify "https://download.nextcloud.com/server/releases/nextcloud-$version.zip" "$hash" /tmp/nextcloud.zip
 
+	# user_external has no release compatible with Nextcloud 30. Disable it while
+	# PHP-FPM is stopped for that maintenance hop, then install its Nextcloud
+	# 31-compatible release on the following hop.
+	if [ -z "$version_user_external" ] && [ -e "$STORAGE_ROOT/owncloud/owncloud.db" ]; then
+		sudo -u www-data php"$PHP_VER" /usr/local/lib/owncloud/occ config:system:delete user_backends
+		sudo -u www-data php"$PHP_VER" /usr/local/lib/owncloud/occ app:disable user_external
+	fi
+
 	# Remove the current owncloud/Nextcloud
 	rm -rf /usr/local/lib/owncloud
 
@@ -101,15 +109,15 @@ InstallNextcloud() {
 	mv /usr/local/lib/nextcloud /usr/local/lib/owncloud
 	rm -f /tmp/nextcloud.zip
 
-	# The two apps we actually want are not in Nextcloud core. Download the releases from
-	# their github repositories.
+	# The apps we actually want are not in Nextcloud core. Download their
+	# packaged releases from GitHub.
 	mkdir -p /usr/local/lib/owncloud/apps
 
-	wget_verify "https://github.com/nextcloud-releases/contacts/archive/refs/tags/v$version_contacts.tar.gz" "$hash_contacts" /tmp/contacts.tgz
+	wget_verify "https://github.com/nextcloud-releases/contacts/releases/download/v$version_contacts/contacts-v$version_contacts.tar.gz" "$hash_contacts" /tmp/contacts.tgz
 	tar xf /tmp/contacts.tgz -C /usr/local/lib/owncloud/apps/
 	rm /tmp/contacts.tgz
 
-	wget_verify "https://github.com/nextcloud-releases/calendar/archive/refs/tags/v$version_calendar.tar.gz" "$hash_calendar" /tmp/calendar.tgz
+	wget_verify "https://github.com/nextcloud-releases/calendar/releases/download/v$version_calendar/calendar-v$version_calendar.tar.gz" "$hash_calendar" /tmp/calendar.tgz
 	tar xf /tmp/calendar.tgz -C /usr/local/lib/owncloud/apps/
 	rm /tmp/calendar.tgz
 
@@ -155,6 +163,12 @@ InstallNextcloud() {
 
 		# Run conversion to BigInt identifiers, this process may take some time on large tables.
 		sudo -u www-data php"$PHP_VER" /usr/local/lib/owncloud/occ db:convert-filecache-bigint --no-interaction
+
+		# Complete queued background migrations before moving to the next major
+		# version, as required by Nextcloud's upgrade procedure.
+		for _ in 1 2 3; do
+			sudo -u www-data php"$PHP_VER" -f /usr/local/lib/owncloud/cron.php
+		done
 	fi
 }
 
@@ -199,9 +213,47 @@ if [ ! -d /usr/local/lib/owncloud/ ] || [[ ! ${CURRENT_NEXTCLOUD_VER} =~ ^$nextc
 			# Remove the read-onlyness of the config while running migrations.
 			sed -i -e '/config_is_read_only/d' "$STORAGE_ROOT/owncloud/config.php"
 		fi
+
+		# Nextcloud supports upgrades from only one major version at a time.
+		# Use the final maintenance release of each major and app releases that
+		# the Nextcloud app store marks compatible with that server version.
+		if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^26 ]]; then
+			InstallNextcloud 27.1.11 9f30c01a021c2e5a9e7baff119955afb3c552ebc 5.5.4 c4e3f2183a0088b829f8aa1b3af1f87c9a4c46a2 4.7.20 12d876904e227156e39ca4335b18481b42a6d00f 3.4.0 7f9d8f4dd6adb85a0e3d7622d85eeb7bfe53f3b4
+			CURRENT_NEXTCLOUD_VER="27.1.11"
+		fi
+		if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^27 ]]; then
+			InstallNextcloud 28.0.14 8a9edcfd26d318eb7d1cfa44d69796f2d1098a80 5.5.4 c4e3f2183a0088b829f8aa1b3af1f87c9a4c46a2 4.7.20 12d876904e227156e39ca4335b18481b42a6d00f 3.4.0 7f9d8f4dd6adb85a0e3d7622d85eeb7bfe53f3b4
+			CURRENT_NEXTCLOUD_VER="28.0.14"
+		fi
+		if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^28 ]]; then
+			InstallNextcloud 29.0.16 ceb3014aaddc70d3074d2c69bc6afc76eb1aeff0 6.0.7 babb779107b029c30ad20b81da33b4f95e1136ff 4.7.20 12d876904e227156e39ca4335b18481b42a6d00f 3.4.0 7f9d8f4dd6adb85a0e3d7622d85eeb7bfe53f3b4
+			CURRENT_NEXTCLOUD_VER="29.0.16"
+		fi
+		if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^29 ]]; then
+			InstallNextcloud 30.0.17 0494197f1984ce8a2f83084c0759a24d48474017 7.3.18 762542bb8c6a6bbde7e785f23d2dea88254cfabe 5.5.22 d21e273bda1355ab3b20340ed465f19670a98afc
+			CURRENT_NEXTCLOUD_VER="30.0.17"
+		fi
+		if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^30 ]]; then
+			InstallNextcloud 31.0.14 a891fede2cd4cb3347a406da3fb4f99cd62c89ce 7.3.18 762542bb8c6a6bbde7e785f23d2dea88254cfabe 5.5.22 d21e273bda1355ab3b20340ed465f19670a98afc 4.0.0 214497dd8691f279ba3740797c565310f0793054
+			CURRENT_NEXTCLOUD_VER="31.0.14"
+		fi
+		if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^31 ]]; then
+			InstallNextcloud 32.0.12 c8a4b04009bacb8597bdf93676edce4abfa8b019 8.3.16 86fc315337a9d328ef443a12416223b14e4c9878 6.5.1 a4155ba3b7caac5e5add69d1673fbd981c19cc13 4.0.0 214497dd8691f279ba3740797c565310f0793054
+			CURRENT_NEXTCLOUD_VER="32.0.12"
+		fi
+		if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^32 ]]; then
+			InstallNextcloud 33.0.6 0fd7f62553087918bebde68d65e751842adf2168 8.7.4 76ba6ee92e7be7fd1d7cb82e539dbc9309a3e41c 6.5.1 a4155ba3b7caac5e5add69d1673fbd981c19cc13 4.0.0 214497dd8691f279ba3740797c565310f0793054
+			CURRENT_NEXTCLOUD_VER="33.0.6"
+		fi
 	fi
 
 	InstallNextcloud $nextcloud_ver $nextcloud_hash $contacts_ver $contacts_hash $calendar_ver $calendar_hash $user_external_ver $user_external_hash
+
+	# Some migrations are intentionally excluded from the normal upgrade because
+	# they can take a long time. Complete them before bringing Nextcloud back.
+	if [ -e "$STORAGE_ROOT/owncloud/owncloud.db" ]; then
+		sudo -u www-data php"$PHP_VER" /usr/local/lib/owncloud/occ maintenance:repair --include-expensive
+	fi
 fi
 
 # ### Configuring Nextcloud
