@@ -288,10 +288,10 @@ done
 tools/dns_update
 tools/web_update
 
-# Keep the PHP 8.0 packages available for manual rollback, but do not leave the
-# old FPM service enabled after nginx has switched to PHP 8.2.
-if systemctl is-active --quiet php8.0-fpm || systemctl is-enabled --quiet php8.0-fpm; then
-	hide_output systemctl disable --now php8.0-fpm
+# Remove the old runtime after nginx has successfully switched to PHP 8.2.
+mapfile -t OLD_PHP_PACKAGES < <(dpkg-query --show --showformat='${binary:Package}\n' 'php8.0*' 2>/dev/null || /bin/true)
+if [ "${#OLD_PHP_PACKAGES[@]}" -gt 0 ]; then
+	apt_get_quiet purge "${OLD_PHP_PACKAGES[@]}"
 fi
 
 # Give fail2ban another restart. The log files may not all have been present when
