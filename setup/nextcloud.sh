@@ -17,8 +17,8 @@ echo "Installing Nextcloud (contacts/calendar)..."
 # * See https://nextcloud.com/changelog for the latest version.
 # * Check https://docs.nextcloud.com/server/latest/admin_manual/installation/system_requirements.html
 #   for whether it supports the version of PHP available on this machine.
-# * Since Nextcloud only supports upgrades from consecutive major versions,
-#   we automatically install intermediate versions as needed.
+# * Nextcloud only supports upgrades from consecutive major versions. Existing
+#   installations must follow the upstream migration requirement in README.md.
 # * The hash is the SHA1 hash of the ZIP package, which you can find by just running this script and
 #   copying it from the error message when it doesn't match what is below.
 nextcloud_ver=26.0.13
@@ -195,49 +195,9 @@ if [ ! -d /usr/local/lib/owncloud/ ] || [[ ! ${CURRENT_NEXTCLOUD_VER} =~ ^$nextc
 
 	# If ownCloud or Nextcloud was previously installed....
 	if [ -n "${CURRENT_NEXTCLOUD_VER}" ]; then
-		# Database migrations from ownCloud are no longer possible because ownCloud cannot be run under
-		# PHP 7.
-
 		if [ -e "$STORAGE_ROOT/owncloud/config.php" ]; then
-			# Remove the read-onlyness of the config, which is needed for migrations, especially for v24
+			# Remove the read-onlyness of the config while running migrations.
 			sed -i -e '/config_is_read_only/d' "$STORAGE_ROOT/owncloud/config.php"
-		fi
-
-		if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^[89] ]]; then
-			echo "Upgrades from Mail-in-a-Box prior to v0.28 (dated July 30, 2018) with Nextcloud < 13.0.6 (you have ownCloud 8 or 9) are not supported. Upgrade to Mail-in-a-Box version v0.30 first. Setup will continue, but skip the Nextcloud migration."
-			return 0
-		elif [[ ${CURRENT_NEXTCLOUD_VER} =~ ^1[012] ]]; then
-			echo "Upgrades from Mail-in-a-Box prior to v0.28 (dated July 30, 2018) with Nextcloud < 13.0.6 (you have ownCloud 10, 11 or 12) are not supported. Upgrade to Mail-in-a-Box version v0.30 first. Setup will continue, but skip the Nextcloud migration."
-			return 0
-		elif [[ ${CURRENT_NEXTCLOUD_VER} =~ ^1[3456789] ]]; then
-			echo "Upgrades from Mail-in-a-Box prior to v60 with Nextcloud 19 or earlier are not supported. Upgrade to the latest Mail-in-a-Box version supported on your machine first. Setup will continue, but skip the Nextcloud migration."
-			return 0
-		fi
-
-		# Hint: whenever you bump, remember this:
-		# - Run a server with the previous version
-		# - On a new if-else block, copy the versions/hashes from the previous version
-		# - Run sudo ./setup/start.sh on the new machine. Upon completion, test its basic functionalities.
-
-		if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^20 ]]; then
-			InstallNextcloud 21.0.7 f5c7079c5b56ce1e301c6a27c0d975d608bb01c9 4.0.7 45e7cf4bfe99cd8d03625cf9e5a1bb2e90549136 3.0.4 d0284b68135777ec9ca713c307216165b294d0fe
-			CURRENT_NEXTCLOUD_VER="21.0.7"
-		fi
-		if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^21 ]]; then
-			InstallNextcloud 22.2.6 9d39741f051a8da42ff7df46ceef2653a1dc70d9 4.1.0 697f6b4a664e928d72414ea2731cb2c9d1dc3077 3.2.2 ce4030ab57f523f33d5396c6a81396d440756f5f 3.0.0 0df781b261f55bbde73d8c92da3f99397000972f
-			CURRENT_NEXTCLOUD_VER="22.2.6"
-		fi
-		if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^22 ]]; then
-			InstallNextcloud 23.0.12 d138641b8e7aabebe69bb3ec7c79a714d122f729 4.1.0 697f6b4a664e928d72414ea2731cb2c9d1dc3077 3.2.2 ce4030ab57f523f33d5396c6a81396d440756f5f 3.0.0 0df781b261f55bbde73d8c92da3f99397000972f
-			CURRENT_NEXTCLOUD_VER="23.0.12"
-		fi
-		if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^23 ]]; then
-			InstallNextcloud 24.0.12 7aa5d61632c1ccf4ca3ff00fb6b295d318c05599 4.1.0 697f6b4a664e928d72414ea2731cb2c9d1dc3077 3.2.2 ce4030ab57f523f33d5396c6a81396d440756f5f 3.0.0 0df781b261f55bbde73d8c92da3f99397000972f
-			CURRENT_NEXTCLOUD_VER="24.0.12"
-		fi
-        if [[ ${CURRENT_NEXTCLOUD_VER} =~ ^24 ]]; then
-			InstallNextcloud 25.0.7 a5a565c916355005c7b408dd41a1e53505e1a080 5.3.0 4b0a6666374e3b55cfd2ae9b72e1d458b87d4c8c 4.4.2 21a42e15806adc9b2618760ef94f1797ef399e2f 3.2.0 a494073dcdecbbbc79a9c77f72524ac9994d2eec
-			CURRENT_NEXTCLOUD_VER="25.0.7"
 		fi
 	fi
 
