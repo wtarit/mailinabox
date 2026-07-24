@@ -23,6 +23,10 @@ apt_install nginx php"${PHP_VER}"-cli php"${PHP_VER}"-fpm idn2
 
 rm -f /etc/nginx/sites-enabled/default
 
+# Ubuntu 22.04's nginx MIME map predates JavaScript modules. Nextcloud serves
+# .mjs assets and requires browsers to receive them as JavaScript.
+sed -i 's#application/javascript[[:space:]]*js;#application/javascript js mjs;#' /etc/nginx/mime.types
+
 # Copy in a nginx configuration file for common and best-practices
 # SSL settings from @konklone. Replace STORAGE_ROOT so it can find
 # the DH params.
