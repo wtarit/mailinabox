@@ -158,8 +158,8 @@ fi
 
 # ### Set the system timezone
 #
-# Some systems are missing /etc/timezone, which we cat into the configs for
-# Z-Push and ownCloud, so we need to set it to something. Daily cron tasks
+# Some systems are missing /etc/timezone, which we use in the ownCloud
+# configuration, so we need to set it to something. Daily cron tasks
 # like the system backup are run at a time tied to the system timezone, so
 # letting the user choose will help us identify the right time to do those
 # things (i.e. late at night in whatever timezone the user actually lives
